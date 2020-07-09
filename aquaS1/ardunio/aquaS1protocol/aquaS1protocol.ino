@@ -1,4 +1,6 @@
 #define TEMP_PIN A0
+#define HIGH_LEVEL_PIN A1
+#define PUMP_PIN 2
 
 char in;
 bool pumping = false;
@@ -7,6 +9,10 @@ void setup()
 {
   Serial.begin(9600);
   Serial.println("*R");
+
+  pinMode(TEMP_PIN, INPUT);
+  pinMode(HIGH_LEVEL_PIN, INPUT_PULLUP);
+  pinMode(PUMP_PIN, OUTPUT);
 }
 
 void loop()
@@ -25,6 +31,8 @@ void loop()
     else if (in == '*')
     {
       handleFlag();
+    } else {
+      doError(0);
     }
   }
 
@@ -73,7 +81,7 @@ float getTemp()
 
 bool getLevel()
 {
-  return millis() % 2;
+  return analogRead(HIGH_LEVEL_PIN) < 300;
 }
 
 void handleSet()
@@ -84,11 +92,11 @@ void handleSet()
     in = Serial.read();
     if (in == '0')
     {
-      pumping = false;
+      setPump(false);
     }
     else if (in == '1')
     {
-      pumping = true;
+      setPump(true);
     }
     else
     {
@@ -101,12 +109,27 @@ void handleSet()
   }
 }
 
+void setPump(bool state) {
+  pumping = state;
+  digitalWrite(PUMP_PIN, state);
+}
+
 void handleFlag()
 {
   in = Serial.read();
   if (in == 'R')
   {
     Serial.println("*R");
+  }
+  if (in == 'X') {
+    digitalWrite(LED_BUILTIN, HIGH);
+    delay(200);
+    digitalWrite(LED_BUILTIN, LOW);
+    delay(200);
+    digitalWrite(LED_BUILTIN, HIGH);    
+    delay(200);
+    digitalWrite(LED_BUILTIN, LOW);
+    delay(200);
   }
   else
   {

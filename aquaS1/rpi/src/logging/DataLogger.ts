@@ -11,11 +11,11 @@ export default class DataLogger<T extends DataObject> {
 
   constructor(path: string) {
     this.path = path;
-    this.stream = fs.createWriteStream(path);
+    this.stream = fs.createWriteStream(path, { flags: 'a' });
   }
 
   log(data: T) {
     data.timestamp = Date.now();
-    this.stream.write(JSON.stringify(data));
+    this.stream.write(JSON.stringify(data) + "\n");
   }
 }

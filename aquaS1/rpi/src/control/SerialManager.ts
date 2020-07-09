@@ -4,14 +4,14 @@ import Readline from "@serialport/parser-readline";
 
 const READY_FLAG = "*R";
 
-interface Events {
+export interface Events {
   ready: () => void;
   error: (message: string) => void;
   mcmessage: (data: string) => void;
   mcerror: (data: string) => void;
 }
 
-export class SerialControlManager {
+export default class SerialManager {
   port: SerialPort;
   queryQueue: { controlChar: string; resolve: (data: any) => void }[];
   parser: any;
@@ -39,9 +39,21 @@ export class SerialControlManager {
     return this.emitter.on(event, callback);
   }
 
+  write(text: string) {
+    if (this.port) {
+      return this.port.write(text)
+    } else {
+      return false
+    }
+  }
+
+  close() {
+    this.port.close();
+  }
+
   query<T>(controlChar: string) {
     this.port.write(`?${controlChar}`);
-    console.log(`> ?${controlChar}`);
+    this.emitter.emit("debug", `#> ?${controlChar}`);
 
     return new Promise<T>((res: (data: T) => void) => {
       this.queryQueue.push({ controlChar, resolve: res });
@@ -57,17 +69,20 @@ export class SerialControlManager {
     }
   }
 
-  set<T extends number | boolean>(controlChar: string, val: T) {
+  assert<T extends number | boolean>(controlChar: string, val: T) {
     let stringVal = String(val);
     if (typeof val === "boolean") {
       stringVal = val ? "1" : "0";
     }
 
     this.port.write(`!${controlChar}${stringVal}`);
-    console.log(`!${controlChar}${stringVal}`);
+    this.emitter.emit("debug", `#> !${controlChar}${stringVal}`);
+
 
     return this.query<T>(controlChar);
   }
+
+
 
   handleData(data: Buffer) {
     // TODO: rewrite to be modular?
@@ -92,7 +107,6 @@ export class SerialControlManager {
         let temp = Number(
           data.match(/^!T(?<temp>\-?[0-9]+\.[0-9]+)/).groups.temp
         );
-        console.log(`${data} - Temperature read at ${temp}C`);
 
         this.resolveQuery(flag, temp);
         break;
@@ -101,7 +115,6 @@ export class SerialControlManager {
       case "L":
       case "P":
         let val = Boolean(data.match(/^![A-Z](?<val>[01])/).groups.val === "1");
-        console.log(`${data} - Boolean read as ${val}`);
 
         this.resolveQuery(flag, val);
         break;
@@ -129,21 +142,7 @@ export class SerialControlManager {
     }
   }
 
-  handleUnknown(data: string) {}
-
-  async getTemp(): Promise<number> {
-    return await this.query("T");
-  }
-
-  async getHighLevel(): Promise<boolean> {
-    return await this.query("L");
-  }
-
-  async getPumpState(): Promise<boolean> {
-    return await this.query("P");
-  }
-
-  async setPumpState(val: boolean): Promise<boolean> {
-    return await this.set("P", val);
+  handleUnknown(data: string) {
+    this.emitter.emit("error", `Recieved unknown response ${data}`);
   }
 }
