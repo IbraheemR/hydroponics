@@ -3,36 +3,35 @@ config();
 
 import { createInterface } from "readline";
 
+import { scheduleJob } from "node-schedule";
+
 import ControlManager from "./control/ControlManager";
 import { eventsLog, dataLog } from "./logging/loggers";
 
 async function measureLoggedVariables() {
+  eventsLog.info("Measuring Logged Variables.");
   dataLog.log({
     T: await arduinoController.getTemp(),
   });
 }
 
 try {
-
   const input = createInterface({
-    input: process.stdin
-  })
-
+    input: process.stdin,
+  });
 
   var arduinoController = new ControlManager(
     process.env.SERIAL_PORT,
     Number(process.env.BAUD_RATE)
   );
 
-  input.on("line", text => {
+  input.on("line", (text) => {
     arduinoController.serialManager.write(text);
-    eventsLog.info(`U> ${text}`)
-  })
-
+    eventsLog.info(`U> ${text}`);
+  });
 
   arduinoController.on("ready", async () => {
     eventsLog.info("Serial control active!");
-    measureLoggedVariables();
   });
 
   arduinoController.on("error", (message) => {
@@ -49,13 +48,14 @@ try {
     eventsLog.error(`%> ${data}`);
   });
 
+  scheduleJob("MeasureLoggedVariables", "*/10 * * * *", measureLoggedVariables);
+
   process.on("SIGINT", () => {
     arduinoController.close();
     input.close();
     eventsLog.info("Stopping gracefully! (SIGINT)");
     process.exit();
   });
-
 } catch (error) {
   eventsLog.error(error.message);
 }
